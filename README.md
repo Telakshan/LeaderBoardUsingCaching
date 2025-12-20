@@ -1,6 +1,6 @@
 # Redis Write-Behind Leaderboard
 
-This project demonstrates a high-performance leaderboard system using Redis Sorted Sets for low-latency reads and a Write-Behind pattern for asynchronous SQL database persistence.
+This project demonstrates a high-performance leaderboard system using Redis Sorted Sets for low-latency reads and a Write-Behind pattern for asynchronous SQL database persistence. This is very much like your leetcode leaderboard, While a traditional database can easily store scores, calculating a "Global Rank" among millions of users in real-time is computationally expensive for SQL. This project solves that bottleneck by leveraging a Polyglot Persistence architecture, using Redis Sorted Sets as the primary engine for real-time ranking and a persistent database (like SQL Server or PostgreSQL) for long-term durability.
 
 ## Architecture
 
