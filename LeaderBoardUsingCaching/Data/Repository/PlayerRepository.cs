@@ -8,7 +8,7 @@ namespace LeaderBoardUsingCaching.Data.Repository;
 public class PlayerRepository : IPlayerRepository
 {
     private readonly PlayerDbContext _playerDbContext;
-    public PlayerRepository(PlayerDbContext playerDbContext) 
+    public PlayerRepository(PlayerDbContext playerDbContext)
     {
         _playerDbContext = playerDbContext;
     }
@@ -38,12 +38,4 @@ public class PlayerRepository : IPlayerRepository
             .Take(topN)
             .ToListAsync();
     }
-
-/*    public async Task<IEnumerable<PlayerScore>> GetAllPlayerScores()
-    {
-        return await _playerDbContext.Players
-            .OrderByDescending(p => p.Score)
-            .Select(p => new PlayerScore(p.Id, p.Score))
-            .ToListAsync();
-    }*/
 }

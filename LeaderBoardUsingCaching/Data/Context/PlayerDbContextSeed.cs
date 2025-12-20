@@ -12,7 +12,7 @@ public class PlayerDbContextSeed
             var faker = new Faker<Player>()
                 .RuleFor(p => p.Name, f => f.Name.FullName())
                 .RuleFor(p => p.Score, f => f.Random.Decimal(0, 1000));
-            var players = faker.Generate(1000000);
+            var players = faker.Generate(1000);
             await context.Players.AddRangeAsync(players);
             await context.SaveChangesAsync();
         }

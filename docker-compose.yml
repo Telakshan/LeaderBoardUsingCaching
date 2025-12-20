@@ -1,0 +1,38 @@
+services:
+  app:
+    image: leaderboard-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__PlayerDb=Server=db;Database=PlayerDb;User Id=sa;Password=Password123!;TrustServerCertificate=True;
+      - ConnectionStrings__Redis=redis
+    ports:
+      - "5082:8080"
+    depends_on:
+      - db
+      - redis
+    networks:
+      - leaderboard-network
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Password123!
+    ports:
+      - "1433:1433"
+    networks:
+      - leaderboard-network
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - leaderboard-network
+
+networks:
+  leaderboard-network:
+    driver: bridge
