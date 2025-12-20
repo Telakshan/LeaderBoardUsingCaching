@@ -1,5 +1,5 @@
-﻿using LeaderBoardUsingCaching.Service;
-using Microsoft.AspNetCore.Http;
+﻿using LeaderBoardUsingCaching.Data.Models;
+using LeaderBoardUsingCaching.Service;
 using Microsoft.AspNetCore.Mvc;
 
 namespace LeaderBoardUsingCaching.Controllers
@@ -15,7 +15,7 @@ namespace LeaderBoardUsingCaching.Controllers
         }
 
         [HttpGet("top/{topK}")]
-        public async Task<IActionResult> GetTopPlayers(int topK)
+        public async Task<ActionResult<List<LeaderboardEntry>>> GetTopPlayers(int topK)
         {
             var topPlayers = await _leaderboardService.GetTopPlayersAsync(topK);
             return Ok(topPlayers);
