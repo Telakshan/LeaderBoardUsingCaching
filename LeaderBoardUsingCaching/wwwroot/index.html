@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏆 Real-time Leaderboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #fff;
+        }
+        
+        h1 {
+            font-family: 'Syncopate', sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .rank-1 { color: #fbbf24; text-shadow: 0 0 10px #fbbf24; }
+        .rank-2 { color: #94a3b8; text-shadow: 0 0 10px #94a3b8; }
+        .rank-3 { color: #b45309; text-shadow: 0 0 10px #b45309; }
+        
+        tr.htmx-swapping td {
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-8 flex flex-col items-center">
+
+    <h1 class="text-4xl md:text-6xl font-bold mb-12 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 tracking-wider">
+        LEADERBOARD
+    </h1>
+
+    <div class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <!-- Leaderboard Table -->
+        <div class="md:col-span-2 glass-panel rounded-2xl p-6 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+            
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-slate-400 border-b border-slate-700">
+                        <th class="p-4 font-semibold uppercase tracking-wider text-sm">Rank</th>
+                        <th class="p-4 font-semibold uppercase tracking-wider text-sm">Player ID</th>
+                        <th class="p-4 font-semibold uppercase tracking-wider text-sm text-right">Score</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboard-body" 
+                       hx-get="/api/leaderboard/htmx/top/10" 
+                       hx-trigger="load, every 2s" 
+                       hx-swap="innerHTML">
+                    
+                    <!-- Rows will be injected here -->
+                    <tr>
+                        <td colspan="3" class="p-8 text-center text-slate-500 animate-pulse">
+                            Loading scores...
+                        </td>
+                    </tr>
+
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Update Form -->
+        <div class="glass-panel rounded-2xl p-6 h-fit sticky top-8">
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                <span class="w-2 h-6 bg-purple-500 rounded-full"></span>
+                Update Score
+            </h2>
+
+            <form hx-post="/api/leaderboard/htmx/update" hx-swap="none" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Player ID</label>
+                    <input type="number" name="playerId" required
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-purple-500 transition-colors placeholder-slate-600"
+                           placeholder="e.g 101">
+                </div>
+
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">New Score</label>
+                    <input type="number" name="newScore" step="0.01" required
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-purple-500 transition-colors placeholder-slate-600"
+                           placeholder="e.g 5000">
+                </div>
+
+                <button type="submit" 
+                        class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] active:scale-95 shadow-lg shadow-purple-900/50">
+                    Update Score
+                </button>
+            </form>
+
+            <div class="mt-8 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <p class="text-xs text-slate-400 text-center uppercase tracking-widest">System Status</p>
+                <div class="flex items-center justify-center gap-2 mt-2">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm font-mono text-green-400">REDIS CONNECTED</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

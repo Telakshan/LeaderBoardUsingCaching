@@ -69,9 +69,12 @@ await rehydrationService.RehydrateLeaderboardAsync("leaderboard");
 
 app.UseCors("AllowAll");
 
+app.UseStaticFiles();
+
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 async Task SeedDatabase()
 {
