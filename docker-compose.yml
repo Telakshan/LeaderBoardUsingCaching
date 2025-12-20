@@ -25,6 +25,8 @@ services:
       - "1433:1433"
     networks:
       - leaderboard-network
+    volumes:
+      - sql_data:/var/opt/mssql
 
   redis:
     image: redis:alpine
@@ -36,3 +38,6 @@ services:
 networks:
   leaderboard-network:
     driver: bridge
+
+volumes:
+  sql_data:
