@@ -1,0 +1,6 @@
+@LeaderBoardUsingCaching_HostAddress = http://localhost:5082
+
+GET {{LeaderBoardUsingCaching_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
