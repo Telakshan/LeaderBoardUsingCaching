@@ -1,5 +1,4 @@
 ﻿using LeaderBoardUsingCaching.Data.Models;
-using LeaderBoardUsingCaching.Data.Repository;
 using StackExchange.Redis;
 using System.Threading.Channels;
 
@@ -9,14 +8,11 @@ public class LeaderboardService
 {
     private readonly IDatabase _redisDb;
     private readonly Channel<ScoreUpdate> _updateQueue;
-    private readonly IPlayerRepository _playerRepository;
 
-    public LeaderboardService(IConnectionMultiplexer redis, IPlayerRepository playerRepository)
+    public LeaderboardService(IConnectionMultiplexer redis, Channel<ScoreUpdate> updateQueue)
     {
-         _redisDb = redis.GetDatabase();
-        _updateQueue = Channel.CreateUnbounded<ScoreUpdate>();
-        _ = Task.Run(ProcessBackgroundUpdates);
-        _playerRepository = playerRepository;
+        _redisDb = redis.GetDatabase();
+        _updateQueue = updateQueue;
     }
 
     public async Task UpdateScoreAsync(int playerId, double newScore)
@@ -24,26 +20,6 @@ public class LeaderboardService
         await _redisDb.SortedSetAddAsync("leaderboard", playerId, newScore);
 
         await _updateQueue.Writer.WriteAsync(new ScoreUpdate(playerId, (decimal)newScore));
-
-        //Return immediately after queuing the update, writing to the database is handled asynchronously
-    }
-
-    private async Task ProcessBackgroundUpdates()
-    {
-        await foreach (var update in _updateQueue.Reader.ReadAllAsync())
-        {
-            try
-            {
-
-                Console.WriteLine($"[Write-Behind] Persisting User {update.PlayerId} with score {update.NewScore} to SQL DB...");
-                await _playerRepository.UpdatePlayerScore(update.PlayerId, update.NewScore);
-            }
-            catch (Exception ex)
-            {
-                // Handle failures (retries, dead-letter queue, etc.)
-                Console.WriteLine($"Error syncing to DB: {ex.Message}");
-            }
-        }
     }
 
     public async Task<List<LeaderboardEntry>> GetTopPlayersAsync(int topK = 10)

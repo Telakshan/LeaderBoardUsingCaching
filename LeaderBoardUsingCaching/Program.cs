@@ -1,40 +1,38 @@
 using LeaderBoardUsingCaching.Data.Context;
+using LeaderBoardUsingCaching.Data.Models;
 using LeaderBoardUsingCaching.Data.Repository;
 using LeaderBoardUsingCaching.Service;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
+using System.Threading.Channels;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var configuration = builder.Configuration;
 
-// Add DbContext
 builder.Services.AddDbContext<PlayerDbContext>(options =>
     options.UseSqlServer(configuration.GetConnectionString("PlayerDb"))
-        .LogTo(Console.WriteLine, new[] { DbLoggerCategory.Database.Command.Name })
-    );
-
-//Bad practice, should make Services Singleton and use IServiceProvider
-builder.Services.AddScoped<IPlayerRepository, PlayerRepository>();
-builder.Services.AddScoped<LeaderboardService>();
-builder.Services.AddScoped<LeaderboardRehydrationService>();
+    .LogTo(Console.WriteLine, new[] { DbLoggerCategory.Database.Command.Name }));
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
     var connectionString = configuration.GetConnectionString("Redis");
-
     return ConnectionMultiplexer.Connect(connectionString!);
 });
 
-// Add services to the container.
+builder.Services.AddSingleton(Channel.CreateUnbounded<ScoreUpdate>());
+
+builder.Services.AddScoped<IPlayerRepository, PlayerRepository>();
+builder.Services.AddSingleton<LeaderboardService>();
+builder.Services.AddScoped<LeaderboardRehydrationService>();
+builder.Services.AddHostedService<ScorePersistenceService>();
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
 
-/*builder.Services.AddCors(options =>
+builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
         builder =>
@@ -43,12 +41,10 @@ builder.Services.AddSwaggerGen();
                    .AllowAnyMethod()
                    .AllowAnyHeader();
         });
-});*/
-
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -56,24 +52,28 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-//app.UseHttpsRedirection();
+//Step 1: Migrate
+using (var migrationScope = app.Services.CreateScope())
+{
+    var dbContext = migrationScope.ServiceProvider.GetRequiredService<PlayerDbContext>();
+    dbContext.Database.Migrate();
+}
 
-//app.UseCors("AllowAll");
+//Step 2: Seed database
+await SeedDatabase();
+
+//Step 3: Rehydrate leaderboard
+using var scope = app.Services.CreateScope();
+var rehydrationService = scope.ServiceProvider.GetRequiredService<LeaderboardRehydrationService>();
+await rehydrationService.RehydrateLeaderboardAsync("leaderboard");
+
+app.UseCors("AllowAll");
 
 app.UseAuthorization();
 
 app.MapControllers();
 
-
-//Rehydrate leaderboard cache from database on startup
-using var scope = app.Services.CreateScope();
-var rehydrationService = scope.ServiceProvider.GetRequiredService<LeaderboardRehydrationService>();
-await rehydrationService.RehydrateLeaderboardAsync("leaderboard");
-
-
-//SeedDatabase();
-
-async void SeedDatabase()
+async Task SeedDatabase()
 {
     using var scope = app.Services.CreateScope();
 
@@ -87,7 +87,7 @@ async void SeedDatabase()
         throw;
     }
 }
-async void TruncateTable()
+async Task TruncateTable()
 {
     using var scope = app.Services.CreateScope();
 
@@ -110,6 +110,5 @@ async void TruncateTable()
     }
 }
 
-//Run after seeding
-app.Run();
 
+app.Run();
