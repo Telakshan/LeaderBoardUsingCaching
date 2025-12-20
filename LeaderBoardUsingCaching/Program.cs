@@ -10,7 +10,9 @@ var configuration = builder.Configuration;
 
 // Add DbContext
 builder.Services.AddDbContext<PlayerDbContext>(options =>
-    options.UseSqlServer(configuration.GetConnectionString("PlayerDb")));
+    options.UseSqlServer(configuration.GetConnectionString("PlayerDb"))
+        .LogTo(Console.WriteLine, new[] { DbLoggerCategory.Database.Command.Name })
+    );
 
 //Bad practice, should make Services Singleton and use IServiceProvider
 builder.Services.AddScoped<IPlayerRepository, PlayerRepository>();
@@ -32,6 +34,17 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
 
+/*builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        builder =>
+        {
+            builder.AllowAnyOrigin()
+                   .AllowAnyMethod()
+                   .AllowAnyHeader();
+        });
+});*/
+
 
 var app = builder.Build();
 
@@ -43,7 +56,9 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
+
+//app.UseCors("AllowAll");
 
 app.UseAuthorization();
 
