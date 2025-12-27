@@ -1,10 +1,8 @@
 using LeaderBoardUsingCaching.Data.Context;
-using LeaderBoardUsingCaching.Data.Models;
 using LeaderBoardUsingCaching.Data.Repository;
 using LeaderBoardUsingCaching.Service;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
-using System.Threading.Channels;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,7 +12,7 @@ builder.Services.AddDbContext<PlayerDbContext>(options =>
     options.UseSqlServer(configuration.GetConnectionString("PlayerDb"))
     .LogTo(Console.WriteLine, new[] { DbLoggerCategory.Database.Command.Name }));
 
-//Local cache that we'll check ahead of redis
+/*Local cache that we'll check ahead of redis*/
 builder.Services.AddMemoryCache();
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
@@ -24,12 +22,13 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     return ConnectionMultiplexer.Connect(connectionString!);
 });
 
-builder.Services.AddSingleton(Channel.CreateUnbounded<ScoreUpdate>());
-
 builder.Services.AddScoped<IPlayerRepository, PlayerRepository>();
 builder.Services.AddSingleton<LeaderboardService>();
 builder.Services.AddScoped<LeaderboardRehydrationService>();
-builder.Services.AddHostedService<ScorePersistenceService>();
+
+
+//Background services
+builder.Services.AddHostedService<StreamWorker>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
