@@ -52,10 +52,10 @@ public class StreamWorker : BackgroundService
         }
         catch (RedisServerException) { /* Group already exists */ }
 
-        // 1. Recover Pending Messages (Crash Recovery)
+        //Recover Pending Messages (Crash Recovery)
         await ProcessPendingMessagesAsync(db);
 
-        // 2. Process New Messages
+        //Process New Messages
         while (!stoppingToken.IsCancellationRequested)
         {
             /* Use XREADGROUP with BLOCK to reduce polling overhead.
