@@ -14,7 +14,7 @@ namespace LeaderBoardUsingCaching.Controllers
             _leaderboardService = leaderboardService;
         }
 
-        [HttpGet("top/{topK}")]
+        [HttpGet("top/{topK?}")]
         public async Task<ActionResult<List<LeaderboardEntry>>> GetTopPlayers(int topK)
         {
             var topPlayers = await _leaderboardService.GetTopPlayersAsync(topK);
