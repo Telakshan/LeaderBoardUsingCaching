@@ -6,12 +6,9 @@ namespace LeaderBoardUsingCaching.Service;
 
 public class StreamWorker : BackgroundService
 {
-    private readonly IConnectionMultiplexer _blockingRedis; // Dedicated connection!
+    private readonly IConnectionMultiplexer _blockingRedis; // Dedicated connection
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<StreamWorker> _logger;
-
-    private const string StreamName = "score_stream";
-    private const string GroupName = "score_writers";
 
     private readonly string _consumerName;
 
@@ -26,11 +23,11 @@ public class StreamWorker : BackgroundService
 
         _serviceProvider = serviceProvider;
 
-        string _hostName = Environment.GetEnvironmentVariable("HOSTNAME")
+        string hostName = Environment.GetEnvironmentVariable("HOSTNAME")
             ?? Environment.MachineName
             ?? Guid.NewGuid().ToString();
 
-        _consumerName = $"worker-{_hostName}";
+        _consumerName = $"worker-{hostName}";
         _logger = logger;
     }
 
@@ -46,9 +43,9 @@ public class StreamWorker : BackgroundService
 
         try
         {
-            await db.StreamCreateConsumerGroupAsync(StreamName, GroupName, StreamPosition.Beginning);
+            await db.StreamCreateConsumerGroupAsync(Constants.StreamName, Constants.GroupName, StreamPosition.Beginning);
             _logger.LogInformation("Created Redis stream consumer group '{GroupName}' on stream '{StreamName}'",
-                GroupName, StreamName);
+                Constants.GroupName, Constants.StreamName);
         }
         catch (RedisServerException) { /* Group already exists */ }
 
@@ -61,15 +58,25 @@ public class StreamWorker : BackgroundService
             /* Use XREADGROUP with BLOCK to reduce polling overhead.
                StackExchange.Redis StreamReadGroupAsync helpers don't expose BLOCK directly in all versions, 
                so we use ExecuteAsync to send the raw command. */
-            var result = await db.ExecuteAsync("XREADGROUP", "GROUP", GroupName, _consumerName, "BLOCK", "2000", "COUNT", "10", "STREAMS", StreamName, ">");
 
-            if (result.IsNull) continue; // Timed out or empty
+            try
+            {
+                var result = await db.ExecuteAsync("XREADGROUP", "GROUP", Constants.GroupName, _consumerName, "BLOCK", "2000", "COUNT", "10", "STREAMS", Constants.StreamName, ">");
 
-            var entries = ParseResult(result);
+                if (result.IsNull) continue; // Timed out or empty
 
-            if (entries.Length == 0) continue;
+                var entries = ParseResult(result);
 
-            await ProcessEntriesAsync(db, entries);
+                if (entries.Length == 0) continue;
+
+                await ProcessEntriesAsync(db, entries);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "An unexpected error occurred in the stream worker. Retrying after a delay...");
+                await Task.Delay(5000, stoppingToken);
+            }
+
         }
     }
 
@@ -77,7 +84,7 @@ public class StreamWorker : BackgroundService
     {
         while (true)
         {
-            var pendingEntries = await db.StreamReadGroupAsync(StreamName, GroupName, _consumerName, "0", count: 100);
+            var pendingEntries = await db.StreamReadGroupAsync(Constants.StreamName, Constants.GroupName, _consumerName, "0", count: 100);
 
             if (pendingEntries.Length == 0) break;
 
@@ -94,16 +101,23 @@ public class StreamWorker : BackgroundService
 
             foreach (var entry in entries)
             {
-                var pid = entry.Values.First(v => v.Name == "pid").Value;
-                var score = entry.Values.First(v => v.Name == "score").Value;
+                try {
+                    var pid = entry.Values.First(v => v.Name == "pid").Value;
+                    var score = entry.Values.First(v => v.Name == "score").Value;
 
-                await repository.UpdatePlayerScore(
-                    int.Parse(pid!),
-                    decimal.Parse(score!)
-                    );
+                    await repository.UpdatePlayerScore(
+                        int.Parse(pid!),
+                        decimal.Parse(score!)
+                        );
 
-                // Acknowledge the message (Tells Redis we've processed it)
-                await db.StreamAcknowledgeAsync(StreamName, GroupName, entry.Id);
+                    // Acknowledge the message (Tells Redis we've processed it)
+                    await db.StreamAcknowledgeAsync(Constants.StreamName, Constants.GroupName, entry.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to process message {MessageId}. It will be retried on the next poll.", entry.Id);
+                    continue;
+                }
             }
 
             _logger.LogInformation("Processed {Count} entries from stream", entries.Length);

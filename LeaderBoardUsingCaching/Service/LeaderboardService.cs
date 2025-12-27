@@ -13,8 +13,6 @@ public class LeaderboardService
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
-    private const string StreamName = "score_stream";
-
     public LeaderboardService(IConnectionMultiplexer redis,
         IMemoryCache localCache,
         ILogger<LeaderboardService> logger)
@@ -33,7 +31,7 @@ public class LeaderboardService
 
         _ = transaction.SortedSetAddAsync("leaderboard", playerId, newScore);
 
-        _ = transaction.StreamAddAsync(StreamName,
+        _ = transaction.StreamAddAsync(Constants.StreamName,
         [
             new NameValueEntry("pid", playerId),
             new NameValueEntry("score", newScore)
