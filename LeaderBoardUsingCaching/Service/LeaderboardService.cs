@@ -1,5 +1,4 @@
 ﻿using LeaderBoardUsingCaching.Data.Models;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Memory;
 using StackExchange.Redis;
 using System.Collections.Concurrent;
