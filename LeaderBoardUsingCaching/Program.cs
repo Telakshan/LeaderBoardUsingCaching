@@ -14,6 +14,9 @@ builder.Services.AddDbContext<PlayerDbContext>(options =>
     options.UseSqlServer(configuration.GetConnectionString("PlayerDb"))
     .LogTo(Console.WriteLine, new[] { DbLoggerCategory.Database.Command.Name }));
 
+//Local cache that we'll check ahead of redis
+builder.Services.AddMemoryCache();
+
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
@@ -58,6 +61,8 @@ using (var migrationScope = app.Services.CreateScope())
     var dbContext = migrationScope.ServiceProvider.GetRequiredService<PlayerDbContext>();
     dbContext.Database.Migrate();
 }
+
+//await TruncateTable();
 
 //Step 2: Seed database
 await SeedDatabase();
