@@ -2,35 +2,47 @@
 using Microsoft.Extensions.Caching.Memory;
 using StackExchange.Redis;
 using System.Collections.Concurrent;
-using System.Threading.Channels;
 
 namespace LeaderBoardUsingCaching.Service;
 
 public class LeaderboardService
 {
     private readonly IDatabase _redisDb;
-    private readonly Channel<ScoreUpdate> _updateQueue;
     private readonly IMemoryCache _localCache;
     private readonly ILogger<LeaderboardService> _logger;
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
+    private const string StreamName = "score_stream";
+
     public LeaderboardService(IConnectionMultiplexer redis,
-        Channel<ScoreUpdate> updateQueue,
         IMemoryCache localCache,
         ILogger<LeaderboardService> logger)
     {
         _redisDb = redis.GetDatabase();
-        _updateQueue = updateQueue;
         _localCache = localCache;
         _logger = logger;
     }
 
     public async Task UpdateScoreAsync(int playerId, double newScore)
     {
-        await _redisDb.SortedSetAddAsync("leaderboard", playerId, newScore);
 
-        await _updateQueue.Writer.WriteAsync(new ScoreUpdate(playerId, (decimal)newScore));
+        var db = _redisDb;
+
+        var transaction = db.CreateTransaction();
+
+        _ = transaction.SortedSetAddAsync("leaderboard", playerId, newScore);
+
+        _ = transaction.StreamAddAsync(StreamName,
+        [
+            new NameValueEntry("pid", playerId),
+            new NameValueEntry("score", newScore)
+        ], maxLength: 1000);
+
+        await transaction.ExecuteAsync();
+
+        // Invalidate the local cache for the most common view to ensure immediate consistency
+        _localCache.Remove("leaderboard_top_10");
     }
 
     public async Task<List<LeaderboardEntry>> GetTopPlayersAsync(int topK = 10)
@@ -75,7 +87,8 @@ public class LeaderboardService
                 Score = entry.Score
             }).ToList();
 
-            _localCache.Set(cacheKey, leaderboard, TimeSpan.FromSeconds(10));
+            /*Lower the cache time to 2 seconds to reduce staleness*/
+            _localCache.Set(cacheKey, leaderboard, TimeSpan.FromSeconds(2));
 
             _logger.LogInformation("Redis cache hit!");
             return leaderboard;
