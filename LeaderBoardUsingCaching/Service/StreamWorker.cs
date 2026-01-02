@@ -61,7 +61,8 @@ public class StreamWorker : BackgroundService
 
             try
             {
-                var result = await db.ExecuteAsync("XREADGROUP", "GROUP", Constants.GroupName, _consumerName, "BLOCK", "2000", "COUNT", "10", "STREAMS", Constants.StreamName, ">");
+                // Increased count to 100 for better batching throughput
+                var result = await db.ExecuteAsync("XREADGROUP", "GROUP", Constants.GroupName, _consumerName, "BLOCK", "2000", "COUNT", "100", "STREAMS", Constants.StreamName, ">");
 
                 if (result.IsNull) continue; // Timed out or empty
 
@@ -98,29 +99,57 @@ public class StreamWorker : BackgroundService
         using (var scope = _serviceProvider.CreateScope())
         {
             var repository = scope.ServiceProvider.GetRequiredService<IPlayerRepository>();
+            var updatesToApply = new Dictionary<int, decimal>();
+            var idsToAck = new List<RedisValue>();
 
             foreach (var entry in entries)
             {
-                try {
-                    var pid = entry.Values.First(v => v.Name == "pid").Value;
-                    var score = entry.Values.First(v => v.Name == "score").Value;
+                try 
+                {
+                    var pidVal = entry.Values.First(v => v.Name == "pid").Value;
+                    var scoreVal = entry.Values.First(v => v.Name == "score").Value;
 
-                    await repository.UpdatePlayerScore(
-                        int.Parse(pid!),
-                        decimal.Parse(score!)
-                        );
+                    if (!pidVal.HasValue || !scoreVal.HasValue) continue;
 
-                    // Acknowledge the message (Tells Redis we've processed it)
-                    await db.StreamAcknowledgeAsync(Constants.StreamName, Constants.GroupName, entry.Id);
+                    int pid = int.Parse(pidVal!);
+                    decimal score = decimal.Parse(scoreVal!);
+
+                    // Overwrite matches the "latest wins" logic for a single batch
+                    updatesToApply[pid] = score;
+                    idsToAck.Add(entry.Id);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to process message {MessageId}. It will be retried on the next poll.", entry.Id);
-                    continue;
+                    _logger.LogError(ex, "Error parsing message {MessageId}. Skipping.", entry.Id);
+                    // For a real production app, you might want to dead-letter queue this 
+                    // or decide if you should ACK it so it doesn't block forever.
+                    // Here we'll skip adding it to ack list so it might act as a retry or poison pill handling needed.
                 }
             }
 
-            _logger.LogInformation("Processed {Count} entries from stream", entries.Length);
+            if (updatesToApply.Any())
+            {
+                try 
+                {
+                    // 1. Batch SQL Update
+                    await repository.UpdatePlayerScores(updatesToApply);
+
+                    // 2. Batch Redis Ack
+                    if (idsToAck.Any())
+                    {
+                        await db.StreamAcknowledgeAsync(Constants.StreamName, Constants.GroupName, idsToAck.ToArray());
+                    }
+                    
+                    _logger.LogInformation("Batch processed {Count} updates.", updatesToApply.Count);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to process batch. Updates will be retried.");
+                    // Throwing here allows the outer loop to catch and delay, 
+                    // and since we didn't ACK, they will be redelivered.
+                    throw; 
+                }
+            }
         }
     }
 

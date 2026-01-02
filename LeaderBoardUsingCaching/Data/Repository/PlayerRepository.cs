@@ -31,6 +31,27 @@ public class PlayerRepository : IPlayerRepository
         }
     }
 
+    public async Task UpdatePlayerScores(Dictionary<int, decimal> playerUpdates)
+    {
+        var playerIds = playerUpdates.Keys.ToList();
+        
+        // Fetch all relevant players in one query
+        var players = await _playerDbContext.Players
+            .Where(p => playerIds.Contains(p.Id))
+            .ToListAsync();
+
+        foreach (var player in players)
+        {
+            if (playerUpdates.TryGetValue(player.Id, out var newScore))
+            {
+                player.Score = newScore;
+            }
+        }
+
+        // Save all changes in one transaction
+        await _playerDbContext.SaveChangesAsync();
+    }
+
     public async Task<IEnumerable<Player>> GetTopPlayers(int topN = 1000)
     {
         return await _playerDbContext.Players
