@@ -85,7 +85,7 @@ public class StreamWorker : BackgroundService
     {
         while (true)
         {
-            var pendingEntries = await db.StreamReadGroupAsync(Constants.StreamName, Constants.GroupName, _consumerName, "0", count: 100);
+            var pendingEntries = await db.StreamReadGroupAsync(Constants.StreamName, Constants.GroupName, _consumerName, StreamPosition.Beginning, count: 100);
 
             if (pendingEntries.Length == 0) break;
 
@@ -104,7 +104,7 @@ public class StreamWorker : BackgroundService
 
             foreach (var entry in entries)
             {
-                try 
+                try
                 {
                     var pidVal = entry.Values.First(v => v.Name == "pid").Value;
                     var scoreVal = entry.Values.First(v => v.Name == "score").Value;
@@ -129,7 +129,7 @@ public class StreamWorker : BackgroundService
 
             if (updatesToApply.Any())
             {
-                try 
+                try
                 {
                     // 1. Batch SQL Update
                     await repository.UpdatePlayerScores(updatesToApply);
@@ -139,7 +139,7 @@ public class StreamWorker : BackgroundService
                     {
                         await db.StreamAcknowledgeAsync(Constants.StreamName, Constants.GroupName, idsToAck.ToArray());
                     }
-                    
+
                     _logger.LogInformation("Batch processed {Count} updates.", updatesToApply.Count);
                 }
                 catch (Exception ex)
@@ -147,7 +147,7 @@ public class StreamWorker : BackgroundService
                     _logger.LogError(ex, "Failed to process batch. Updates will be retried.");
                     // Throwing here allows the outer loop to catch and delay, 
                     // and since we didn't ACK, they will be redelivered.
-                    throw; 
+                    throw;
                 }
             }
         }
