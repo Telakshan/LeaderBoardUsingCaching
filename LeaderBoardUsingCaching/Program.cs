@@ -95,23 +95,11 @@ async Task TruncateTable()
 {
     using var scope = app.Services.CreateScope();
 
-    try
-    {
-        var scopedContext = scope.ServiceProvider.GetRequiredService<PlayerDbContext>();
+    var scopedContext = scope.ServiceProvider.GetRequiredService<PlayerDbContext>();
 
-        var length = await scopedContext.Players.CountAsync();
+    scopedContext.Database.ExecuteSqlRaw($"TRUNCATE TABLE Players");
 
-        var itemsToDelete = scopedContext.Players.Take(length);
-
-        scopedContext.Players.RemoveRange(itemsToDelete);
-
-        scopedContext.SaveChanges();
-
-    }
-    catch (Exception)
-    {
-        throw;
-    }
+    scopedContext.SaveChanges();
 }
 
 

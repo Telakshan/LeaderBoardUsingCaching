@@ -5,14 +5,14 @@ namespace LeaderBoardUsingCaching.Data.Context;
 
 public class PlayerDbContextSeed
 {
-    public static async Task SeedAsync(PlayerDbContext context)
+    public static async Task SeedAsync(PlayerDbContext context, int count = 10000)
     {
         if (!context.Players.Any())
         {
             var faker = new Faker<Player>()
                 .RuleFor(p => p.Name, f => f.Name.FullName())
                 .RuleFor(p => p.Score, f => f.Random.Decimal(0, 1000));
-            var players = faker.Generate(10000);
+            var players = faker.Generate(count);
             await context.Players.AddRangeAsync(players);
             await context.SaveChangesAsync();
         }
